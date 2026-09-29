@@ -4,7 +4,7 @@ import { REST, Routes, SlashCommandBuilder, PermissionFlagsBits } from 'discord.
 const commands = [
   new SlashCommandBuilder()
     .setName('setup')
-    .setDescription('Create the official Coronka server structure')
+    .setDescription('Clean up and rebuild the streamlined Coronka server')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   new SlashCommandBuilder()
@@ -27,7 +27,7 @@ const commands = [
     .addStringOption(o =>
       o.setName('mode').setDescription('Arena mode')
         .addChoices({ name: 'Ranked', value: 'ranked' }, { name: 'Casual', value: 'casual' }))
-    .addBooleanOption(o => o.setName('voice').setDescription('Create a temporary voice room for the group?')),
+    .addBooleanOption(o => o.setName('voice').setDescription('Create a temporary voice room? Defaults to yes')),
 
   new SlashCommandBuilder()
     .setName('feedback')
