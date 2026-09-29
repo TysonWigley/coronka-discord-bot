@@ -13,11 +13,41 @@ import {
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates] });
 
 const GAME = {
-  arena: { name: 'Coronka Arena', role: 'Arena Player', lfg: 'arena-find-a-game', feedback: 'arena-feedback' },
-  duel: { name: 'Coronka Duel', role: 'Duel Player', lfg: 'duel-find-a-game', feedback: 'duel-feedback' },
-  kingdoms: { name: 'Kingdoms of Coronka', role: 'Kingdoms Player', lfg: 'kingdoms-find-a-game', feedback: 'kingdoms-feedback' },
-  overall: { name: 'Coronka', feedback: 'general-feedback' },
+  arena: { name: 'Coronka Arena', role: 'Arena Player', lfg: 'arena-lfg' },
+  duel: { name: 'Coronka Duel', role: 'Duel Player', lfg: 'duel-lfg' },
+  kingdoms: { name: 'Kingdoms of Coronka', role: 'Kingdoms Player', lfg: 'kingdoms-lfg' },
+  overall: { name: 'Coronka' },
 };
+
+const OBSOLETE_CHANNELS = [
+  'screenshots-and-clips',
+  'general-feedback',
+  'off-topic',
+  'arena-discussion',
+  'arena-strategy',
+  'arena-ranked',
+  'arena-find-a-game',
+  'arena-feedback',
+  'duel-discussion',
+  'duel-strategy',
+  'duel-find-a-game',
+  'duel-feedback',
+  'kingdoms-development',
+  'kingdoms-strategy',
+  'kingdoms-find-a-game',
+  'kingdoms-feedback',
+  'kingdoms-changelog',
+  'playtest-announcements',
+  'playtest-chat',
+  'mod-log',
+];
+
+const OBSOLETE_CATEGORIES = [
+  '⚔️ CORONKA ARENA',
+  '🛡️ CORONKA DUEL',
+  '🏯 KINGDOMS OF CORONKA',
+  '📅 PLAYTESTS & EVENTS',
+];
 
 const lfgs = new Map();
 const feedbackVotes = new Map();
@@ -35,10 +65,72 @@ async function ensureCategory(guild, name) {
   return ch;
 }
 
-async function ensureText(guild, category, name, topic = '') {
+async function ensureText(guild, category, name, topic = '', readOnly = false) {
   let ch = guild.channels.cache.find(c => c.type === ChannelType.GuildText && c.name === name);
-  if (!ch) ch = await guild.channels.create({ name, type: ChannelType.GuildText, parent: category.id, topic });
+  const permissionOverwrites = readOnly
+    ? [{ id: guild.roles.everyone.id, deny: [PermissionFlagsBits.SendMessages] }]
+    : [];
+
+  if (!ch) {
+    ch = await guild.channels.create({
+      name,
+      type: ChannelType.GuildText,
+      parent: category.id,
+      topic,
+      permissionOverwrites,
+    });
+  } else {
+    await ch.edit({ parent: category.id, topic, permissionOverwrites }).catch(() => {});
+  }
   return ch;
+}
+
+async function cleanLegacyLayout(guild) {
+  for (const name of OBSOLETE_CHANNELS) {
+    const ch = guild.channels.cache.find(c => c.name === name && c.type !== ChannelType.GuildCategory);
+    if (ch) await ch.delete('Cleaning old Coronka bot layout').catch(() => {});
+  }
+  for (const name of OBSOLETE_CATEGORIES) {
+    const ch = guild.channels.cache.find(c => c.type === ChannelType.GuildCategory && c.name === name);
+    if (ch) await ch.delete('Cleaning old Coronka bot layout').catch(() => {});
+  }
+}
+
+async function sendStarterContent(welcome, rules) {
+  const welcomeEmbed = new EmbedBuilder()
+    .setTitle('Welcome to Coronka 👑')
+    .setDescription(
+      'This is the community hub for **Coronka Arena**, **Coronka Duel**, and **Kingdoms of Coronka**.\n\n' +
+      '• Pick your game roles in <#' + welcome.guild.channels.cache.find(c => c.name === 'choose-your-games')?.id + '>\n' +
+      '• Find players in the LFG channels\n' +
+      '• Share feedback in #feedback\n' +
+      '• Join official playtests in #playtests\n\n' +
+      'Games are played at **coronka.com** using room codes.'
+    );
+
+  const rulesEmbed = new EmbedBuilder()
+    .setTitle('Coronka Community Rules')
+    .setDescription(
+      '**1. Be respectful.** No harassment, hate speech, personal attacks, or targeted hostility.\n\n' +
+      '**2. Keep it appropriate.** No NSFW, graphic, illegal, or deliberately shocking content.\n\n' +
+      '**3. Do not spam.** Avoid message floods, repeated pings, excessive self-promotion, or disruptive posting.\n\n' +
+      '**4. Keep feedback constructive.** Critique the game, not other players. Explain what happened and what you would like improved.\n\n' +
+      '**5. Use LFG honestly.** Post real room codes, accurate player counts, and close your LFG when the game is finished.\n\n' +
+      '**6. No cheating or exploit abuse.** Do not distribute cheats, automation, exploits, or instructions intended to ruin games for others.\n\n' +
+      '**7. Respect staff decisions.** Moderators may remove content or members to keep the community safe and usable.\n\n' +
+      '**8. Use common sense.** If something is clearly disruptive or harmful, it does not need a loophole in the rules to be moderated.'
+    )
+    .setFooter({ text: 'By participating here, you agree to follow these rules.' });
+
+  const recentWelcome = await welcome.messages.fetch({ limit: 10 }).catch(() => null);
+  if (!recentWelcome?.some(m => m.author.id === client.user.id)) {
+    await welcome.send({ embeds: [welcomeEmbed] });
+  }
+
+  const recentRules = await rules.messages.fetch({ limit: 10 }).catch(() => null);
+  if (!recentRules?.some(m => m.author.id === client.user.id)) {
+    await rules.send({ embeds: [rulesEmbed] });
+  }
 }
 
 async function setupGuild(guild) {
@@ -55,62 +147,50 @@ async function setupGuild(guild) {
   await ensureRole(guild, 'Playtester');
 
   const start = await ensureCategory(guild, '👑 START HERE');
-  await ensureText(guild, start, 'welcome', 'Welcome to the official Coronka community.');
-  await ensureText(guild, start, 'rules', 'Community rules and expectations.');
-  await ensureText(guild, start, 'choose-your-games', 'Choose which Coronka games you play.');
-  await ensureText(guild, start, 'announcements', 'Official Coronka announcements.');
+  const welcome = await ensureText(guild, start, 'welcome', 'Start here for the Coronka community.', true);
+  const rules = await ensureText(guild, start, 'rules', 'Community rules and expectations.', true);
+  await ensureText(guild, start, 'choose-your-games', 'Choose which Coronka games you play.', true);
+  await ensureText(guild, start, 'announcements', 'Official Coronka announcements.', true);
 
   const community = await ensureCategory(guild, '🏰 CORONKA COMMUNITY');
   await ensureText(guild, community, 'general', 'General Coronka discussion.');
-  await ensureText(guild, community, 'screenshots-and-clips', 'Share moments from your Coronka games.');
-  await ensureText(guild, community, 'general-feedback', 'Feedback about Coronka overall.');
-  await ensureText(guild, community, 'off-topic', 'Community conversation beyond Coronka.');
+  await ensureText(guild, community, 'media', 'Share screenshots, clips, art, and memorable moments.');
+  await ensureText(guild, community, 'feedback', 'Public feedback for all Coronka games.');
 
-  const arena = await ensureCategory(guild, '⚔️ CORONKA ARENA');
-  await ensureText(guild, arena, 'arena-discussion', 'Discuss Coronka Arena.');
-  await ensureText(guild, arena, 'arena-strategy', 'Arena strategy and tactics.');
-  await ensureText(guild, arena, 'arena-ranked', 'Ranked Arena discussion.');
-  await ensureText(guild, arena, 'arena-find-a-game', 'Post Arena room codes and find players.');
-  await ensureText(guild, arena, 'arena-feedback', 'Public Arena feedback and voting.');
+  const lfg = await ensureCategory(guild, '🎮 FIND A GAME');
+  await ensureText(guild, lfg, 'arena-lfg', 'Find players for Coronka Arena.');
+  await ensureText(guild, lfg, 'duel-lfg', 'Find players for Coronka Duel.');
+  await ensureText(guild, lfg, 'kingdoms-lfg', 'Find players for Kingdoms of Coronka.');
+  await ensureText(guild, lfg, 'playtests', 'Official Coronka playtests and RSVPs.', true);
 
-  const duel = await ensureCategory(guild, '🛡️ CORONKA DUEL');
-  await ensureText(guild, duel, 'duel-discussion', 'Discuss Coronka Duel.');
-  await ensureText(guild, duel, 'duel-strategy', 'Duel strategy and tactics.');
-  await ensureText(guild, duel, 'duel-find-a-game', 'Post Duel room codes and find players.');
-  await ensureText(guild, duel, 'duel-feedback', 'Public Duel feedback and voting.');
-
-  const kingdoms = await ensureCategory(guild, '🏯 KINGDOMS OF CORONKA');
-  await ensureText(guild, kingdoms, 'kingdoms-development', 'Discuss the development of Kingdoms of Coronka.');
-  await ensureText(guild, kingdoms, 'kingdoms-strategy', 'Kingdoms strategy and theorycrafting.');
-  await ensureText(guild, kingdoms, 'kingdoms-find-a-game', 'Find Kingdoms playtest players.');
-  await ensureText(guild, kingdoms, 'kingdoms-feedback', 'Public Kingdoms feedback and voting.');
-  await ensureText(guild, kingdoms, 'kingdoms-changelog', 'Official Kingdoms development updates.');
-
-  const events = await ensureCategory(guild, '📅 PLAYTESTS & EVENTS');
-  await ensureText(guild, events, 'playtest-announcements', 'Official scheduled playtests.');
-  await ensureText(guild, events, 'playtest-chat', 'Coordinate and discuss official playtests.');
+  await ensureCategory(guild, '🔊 TEMP VOICE');
 
   const staff = await ensureCategory(guild, '🔒 STAFF');
-  if (!guild.channels.cache.find(c => c.name === 'staff-chat')) {
-    await guild.channels.create({
-      name: 'staff-chat', type: ChannelType.GuildText, parent: staff.id,
+  let staffChat = guild.channels.cache.find(c => c.name === 'staff-chat' && c.type === ChannelType.GuildText);
+  if (!staffChat) {
+    staffChat = await guild.channels.create({
+      name: 'staff-chat',
+      type: ChannelType.GuildText,
+      parent: staff.id,
       permissionOverwrites: [
         { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
         { id: admin.id, allow: [PermissionFlagsBits.ViewChannel] },
         { id: mod.id, allow: [PermissionFlagsBits.ViewChannel] },
       ],
     });
-  }
-  if (!guild.channels.cache.find(c => c.name === 'mod-log')) {
-    await guild.channels.create({
-      name: 'mod-log', type: ChannelType.GuildText, parent: staff.id,
+  } else {
+    await staffChat.edit({
+      parent: staff.id,
       permissionOverwrites: [
         { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
         { id: admin.id, allow: [PermissionFlagsBits.ViewChannel] },
         { id: mod.id, allow: [PermissionFlagsBits.ViewChannel] },
       ],
-    });
+    }).catch(() => {});
   }
+
+  await cleanLegacyLayout(guild);
+  await sendStarterContent(welcome, rules);
 }
 
 function roleButtons() {
@@ -127,8 +207,11 @@ function lfgEmbed(data) {
   const mode = data.game === 'arena' ? `\n**Mode:** ${data.mode === 'ranked' ? 'Ranked' : 'Casual'}` : '';
   return new EmbedBuilder()
     .setTitle(`${GAME[data.game].name} — Looking for Players`)
-    .setDescription(`**Host:** <@${data.host}>\n**Room Code:** \`${data.roomCode}\`\n**Players:** ${joined}/${data.players}${mode}\n**Voice:** ${data.voice ? 'Temporary VC enabled' : 'No voice room'}`)
-    .setFooter({ text: 'Use Join/Leave below. Room codes are entered on coronka.com.' });
+    .setDescription(
+      `**Host:** <@${data.host}>\n**Room Code:** \`${data.roomCode}\`\n**Players:** ${joined}/${data.players}${mode}\n` +
+      `**Voice:** ${data.voiceChannelId ? `<#${data.voiceChannelId}>` : 'Disabled'}`
+    )
+    .setFooter({ text: 'Use Join/Leave below. Enter the room code at coronka.com.' });
 }
 
 function lfgButtons(id, full = false) {
@@ -167,7 +250,7 @@ client.on('interactionCreate', async interaction => {
       if (interaction.commandName === 'setup') {
         await interaction.deferReply({ ephemeral: true });
         await setupGuild(interaction.guild);
-        return interaction.editReply('Coronka server structure created. Run `/roles` in #choose-your-games next.');
+        return interaction.editReply('Coronka cleaned up and rebuilt with the streamlined layout. Run `/roles` in #choose-your-games.');
       }
 
       if (interaction.commandName === 'roles') {
@@ -181,7 +264,7 @@ client.on('interactionCreate', async interaction => {
         const game = interaction.options.getString('game');
         const roomCode = interaction.options.getString('room_code').trim();
         const players = interaction.options.getInteger('players');
-        const voice = interaction.options.getBoolean('voice') ?? false;
+        const voice = interaction.options.getBoolean('voice') ?? true;
         let mode = interaction.options.getString('mode');
         if (game === 'arena' && !mode) mode = 'casual';
         if (game !== 'arena') mode = null;
@@ -191,16 +274,32 @@ client.on('interactionCreate', async interaction => {
 
         const id = `${Date.now()}-${interaction.user.id}`;
         const data = { id, game, roomCode, players, voice, mode, host: interaction.user.id, users: [interaction.user.id], voiceChannelId: null };
+
+        if (voice) {
+          const voiceCategory = interaction.guild.channels.cache.find(c => c.type === ChannelType.GuildCategory && c.name === '🔊 TEMP VOICE');
+          const vc = await interaction.guild.channels.create({
+            name: `${GAME[game].name} • ${roomCode}`.slice(0, 90),
+            type: ChannelType.GuildVoice,
+            parent: voiceCategory?.id,
+            userLimit: players,
+            reason: 'Temporary Coronka LFG voice room',
+          });
+          data.voiceChannelId = vc.id;
+        }
+
         const msg = await channel.send({ embeds: [lfgEmbed(data)], components: [lfgButtons(id)] });
         data.messageId = msg.id;
         data.channelId = channel.id;
         lfgs.set(id, data);
-        return interaction.reply({ content: `Your ${GAME[game].name} LFG is live in <#${channel.id}>.`, ephemeral: true });
+        return interaction.reply({
+          content: `Your ${GAME[game].name} LFG is live in <#${channel.id}>.${data.voiceChannelId ? ` Voice room: <#${data.voiceChannelId}>` : ''}`,
+          ephemeral: true,
+        });
       }
 
       if (interaction.commandName === 'feedback') {
         const game = interaction.options.getString('game');
-        const channel = interaction.guild.channels.cache.find(c => c.name === GAME[game].feedback);
+        const channel = interaction.guild.channels.cache.find(c => c.name === 'feedback');
         if (!channel) return interaction.reply({ content: 'Run `/setup` first.', ephemeral: true });
         const id = `${Date.now()}-${interaction.user.id}`;
         const data = {
@@ -215,7 +314,7 @@ client.on('interactionCreate', async interaction => {
         data.messageId = msg.id;
         data.channelId = channel.id;
         feedbackVotes.set(id, data);
-        return interaction.reply({ content: `Feedback posted in <#${channel.id}> for public voting.`, ephemeral: true });
+        return interaction.reply({ content: `Feedback posted in <#${channel.id}>.`, ephemeral: true });
       }
 
       if (interaction.commandName === 'playtest') {
@@ -223,7 +322,7 @@ client.on('interactionCreate', async interaction => {
         const when = interaction.options.getString('when');
         const notes = interaction.options.getString('notes');
         const max = interaction.options.getInteger('max_players');
-        const channel = interaction.guild.channels.cache.find(c => c.name === 'playtest-announcements');
+        const channel = interaction.guild.channels.cache.find(c => c.name === 'playtests');
         if (!channel) return interaction.reply({ content: 'Run `/setup` first.', ephemeral: true });
         const id = `${Date.now()}`;
         const data = { game, when, notes, max, users: new Set() };
@@ -278,15 +377,6 @@ client.on('interactionCreate', async interaction => {
 
         if (action === 'lfgjoin') {
           if (!data.users.includes(interaction.user.id) && data.users.length < data.players) data.users.push(interaction.user.id);
-          if (data.voice && !data.voiceChannelId) {
-            const vc = await interaction.guild.channels.create({
-              name: `${GAME[data.game].name} • ${data.roomCode}`.slice(0, 90),
-              type: ChannelType.GuildVoice,
-              userLimit: data.players,
-              reason: 'Temporary Coronka LFG voice room',
-            });
-            data.voiceChannelId = vc.id;
-          }
           const full = data.users.length >= data.players;
           await interaction.message.edit({ embeds: [lfgEmbed(data)], components: [lfgButtons(id, full)] });
           return interaction.reply({ content: `Joined. Room code: \`${data.roomCode}\`${data.voiceChannelId ? ` • Voice: <#${data.voiceChannelId}>` : ''}`, ephemeral: true });
@@ -335,7 +425,7 @@ client.on('interactionCreate', async interaction => {
   }
 });
 
-client.on('voiceStateUpdate', async (oldState) => {
+client.on('voiceStateUpdate', async oldState => {
   const left = oldState.channel;
   if (!left || left.type !== ChannelType.GuildVoice) return;
   const active = [...lfgs.values()].find(x => x.voiceChannelId === left.id);
