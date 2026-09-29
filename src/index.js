@@ -103,9 +103,9 @@ async function sendStarterContent(welcome, rules) {
     .setURL('https://coronka.com')
     .setDescription(
       '**Coronka** is a free multiplayer strategy game you can play entirely in your browser — no download and nothing to buy.\n\n' +
-      '**Coronka Arena** is a competitive, chess-like battle where each player controls a king. Protect your king, outplay the other players, and be the last ruler standing.\n\n' +
-      '**Coronka Duel** is a faster strategy game for 2–6 players, built for quick matches with friends or people you meet here.\n\n' +
-      '**Kingdoms of Coronka** is the next game in development and will be used for community playtests as it grows.\n\n' +
+      '**Coronka Duel** — A war of cards - draw, match, and battle your deck against rivals to seize the crown of Coronka.\n\n' +
+      '**Coronka Arena** — Enter the Colosseum as a King. Build powerful formations, eliminate your rivals, and emerge as a Gladiator of Coronka.\n\n' +
+      '**Kingdoms of Coronka** — Raise castles, command armies, and expand your kingdom across the realm of Coronka. *(Coming soon)*\n\n' +
       '**How to play here**\n' +
       '1. Open **coronka.com** and create or join a game.\n' +
       '2. Use the LFG channels here to post your room code and find players.\n' +
