@@ -102,7 +102,7 @@ async function sendStarterContent(welcome, rules) {
     .setTitle('What is Coronka? 👑')
     .setURL('https://coronka.com')
     .setDescription(
-      '**Coronka** is a free multiplayer strategy game you can play entirely in your browser — no download and nothing to buy.\n\n' +
+      '**Coronka** is a multiplayer strategy game played at **coronka.com**.\n\n' +
       '**Coronka Duel** — A war of cards - draw, match, and battle your deck against rivals to seize the crown of Coronka.\n\n' +
       '**Coronka Arena** — Enter the Colosseum as a King. Build powerful formations, eliminate your rivals, and emerge as a Gladiator of Coronka.\n\n' +
       '**Kingdoms of Coronka** — Raise castles, command armies, and expand your kingdom across the realm of Coronka. *(Coming soon)*\n\n' +
