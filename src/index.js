@@ -97,16 +97,31 @@ async function cleanLegacyLayout(guild) {
 }
 
 async function sendStarterContent(welcome, rules) {
+  const rolesChannel = welcome.guild.channels.cache.find(c => c.name === 'choose-your-games');
   const welcomeEmbed = new EmbedBuilder()
-    .setTitle('Welcome to Coronka 👑')
+    .setTitle('What is Coronka? 👑')
+    .setURL('https://coronka.com')
     .setDescription(
-      'This is the community hub for **Coronka Arena**, **Coronka Duel**, and **Kingdoms of Coronka**.\n\n' +
-      '• Pick your game roles in <#' + welcome.guild.channels.cache.find(c => c.name === 'choose-your-games')?.id + '>\n' +
-      '• Find players in the LFG channels\n' +
-      '• Share feedback in #feedback\n' +
-      '• Join official playtests in #playtests\n\n' +
-      'Games are played at **coronka.com** using room codes.'
-    );
+      '**Coronka** is a free multiplayer strategy game you can play entirely in your browser — no download and nothing to buy.\n\n' +
+      '**Coronka Arena** is a competitive, chess-like battle where each player controls a king. Protect your king, outplay the other players, and be the last ruler standing.\n\n' +
+      '**Coronka Duel** is a faster strategy game for 2–6 players, built for quick matches with friends or people you meet here.\n\n' +
+      '**Kingdoms of Coronka** is the next game in development and will be used for community playtests as it grows.\n\n' +
+      '**How to play here**\n' +
+      '1. Open **coronka.com** and create or join a game.\n' +
+      '2. Use the LFG channels here to post your room code and find players.\n' +
+      '3. Join the temporary voice room if you want to talk while you play.\n' +
+      (rolesChannel ? '4. Pick your game roles in <#' + rolesChannel.id + '> so people know what you play.\n\n' : '\n') +
+      '**Want a match?** Post an LFG, grab a room code, and challenge someone.'
+    )
+    .setFooter({ text: 'Free to play in your browser • Public beta' });
+
+  const playRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setLabel('Play Coronka')
+      .setStyle(ButtonStyle.Link)
+      .setURL('https://coronka.com')
+      .setEmoji('🎮')
+  );
 
   const rulesEmbed = new EmbedBuilder()
     .setTitle('Coronka Community Rules')
@@ -122,9 +137,12 @@ async function sendStarterContent(welcome, rules) {
     )
     .setFooter({ text: 'By participating here, you agree to follow these rules.' });
 
-  const recentWelcome = await welcome.messages.fetch({ limit: 10 }).catch(() => null);
-  if (!recentWelcome?.some(m => m.author.id === client.user.id)) {
-    await welcome.send({ embeds: [welcomeEmbed] });
+  const recentWelcome = await welcome.messages.fetch({ limit: 25 }).catch(() => null);
+  const existingWelcome = recentWelcome?.find(m => m.author.id === client.user.id);
+  if (existingWelcome) {
+    await existingWelcome.edit({ embeds: [welcomeEmbed], components: [playRow] });
+  } else {
+    await welcome.send({ embeds: [welcomeEmbed], components: [playRow] });
   }
 
   const recentRules = await rules.messages.fetch({ limit: 10 }).catch(() => null);
