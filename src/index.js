@@ -293,7 +293,7 @@ client.on('guildMemberAdd', async member => {
       welcome ? `Start in <#${welcome.id}> to learn about the games.` : '',
       roles ? `Choose your game roles in <#${roles.id}> and find a match in the LFG channels.` : 'Find a match in the LFG channels.',
       'Glad to have you in the kingdom!',
-    ].filter(Boolean).join('\\n');
+    ].filter(Boolean).join(String.fromCharCode(10));
 
     await general.send({ content: message, allowedMentions: { users: [member.id] } });
     console.log(`Welcomed member ${member.id} in guild ${member.guild.id}`);
