@@ -10,7 +10,17 @@ import {
   PermissionFlagsBits,
 } from 'discord.js';
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates] });
+// Enable after turning on Server Members Intent in the Discord Developer Portal.
+// Keeping this opt-in prevents Discord from disconnecting the existing bot with
+// a Disallowed Intents error before the portal setting is enabled.
+const memberWelcomeEnabled = process.env.ENABLE_MEMBER_WELCOME === 'true';
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildVoiceStates,
+    ...(memberWelcomeEnabled ? [GatewayIntentBits.GuildMembers] : []),
+  ],
+});
 
 const GAME = {
   arena: { name: 'Coronka Arena', role: 'Arena Player', lfg: 'arena-lfg' },
@@ -260,7 +270,37 @@ function feedbackButtons(id) {
   );
 }
 
-client.once('ready', () => console.log(`Coronka bot online as ${client.user.tag}`));
+client.once('ready', () => {
+  console.log(`Coronka bot online as ${client.user.tag}`);
+  console.log(`New-member welcomes: ${memberWelcomeEnabled ? 'enabled' : 'disabled (enable Server Members Intent, then set ENABLE_MEMBER_WELCOME=true)'}`);
+});
+
+client.on('guildMemberAdd', async member => {
+  if (!memberWelcomeEnabled || member.user.bot) return;
+
+  try {
+    await member.guild.channels.fetch();
+    const general = member.guild.channels.cache.find(
+      channel => channel.type === ChannelType.GuildText && channel.name === 'general'
+    );
+    if (!general) return console.warn(`Welcome skipped: #general missing in ${member.guild.name}`);
+
+    const welcome = member.guild.channels.cache.find(c => c.name === 'welcome');
+    const roles = member.guild.channels.cache.find(c => c.name === 'choose-your-games');
+    const message = [
+      `👑 Welcome to Coronka, <@${member.id}>!`,
+      `Coronka is a world of three multiplayer strategy board games played at **https://coronka.com**.`,
+      welcome ? `Start in <#${welcome.id}> to learn about the games.` : '',
+      roles ? `Choose your game roles in <#${roles.id}> and find a match in the LFG channels.` : 'Find a match in the LFG channels.',
+      'Glad to have you in the kingdom!',
+    ].filter(Boolean).join('\\n');
+
+    await general.send({ content: message, allowedMentions: { users: [member.id] } });
+    console.log(`Welcomed member ${member.id} in guild ${member.guild.id}`);
+  } catch (error) {
+    console.error('Failed to welcome new member:', error);
+  }
+});
 
 client.on('interactionCreate', async interaction => {
   try {
